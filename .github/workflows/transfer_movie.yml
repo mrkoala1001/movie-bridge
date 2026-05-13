@@ -1,32 +1,40 @@
-steps:
-  - name: Install Dependencies
-    run: |
-      sudo apt-get update
-      # lftp untuk transfer FTP yang stabil
-      sudo apt-get install -y lftp
-      # ffmpeg dibutuhkan oleh yt-dlp untuk menggabungkan potongan m3u8
-      sudo apt-get install -y ffmpeg
-      # Install yt-dlp versi terbaru
-      sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-      sudo chmod a+rx /usr/local/bin/yt-dlp
+name: Bridge Transfer Video to Player4Me
 
-  - name: Tahap 1 - Download Video ke GitHub Runner
-    run: |
-      echo "Memulai proses download dari sumber..."
-      # yt-dlp akan otomatis mendownload semua chunk m3u8 dan merge jadi 1 file mp4
-      yt-dlp "${{ github.event.inputs.video_url }}" \
-        -o "${{ github.event.inputs.file_name }}" \
-        --recode-video mp4 \
-        --fragment-retries infinite \
-        --no-check-certificate
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'Link m3u8 dari LK21'
+        required: true
+        default: 'https://edge1-madrid-sprintcdn.r66nv9ed.com/hls2/02/02722/wqzadn6kl63z_h/index-v1-a1.m3u8?t=AhjP_qDhvXpSkzk6wIN9fHmWVn1jxb0Tbdd9SJJKBXA&s=1778632664&e=10800&f=13739365&srv=1055&asn=140478&sp=4000&p=0'
+      ftp_host:
+        description: 'FTP Host (dari Player4Me)'
+        required: true
+      ftp_user:
+        description: 'FTP Username'
+        required: true
+      ftp_pass:
+        description: 'FTP Password'
+        required: true
 
-  - name: Tahap 2 - Upload dari GitHub ke Player4Me via FTP
-    run: |
-      echo "Proses download selesai. Memulai upload ke Player4Me via FTP..."
-      # Menggunakan lftp untuk mengirim file
-      # set ftp:ssl-allow no seringkali dibutuhkan untuk FTP server gratisan/hosting
-      lftp -e "set ftp:ssl-allow no; put -O / ${{ github.event.inputs.file_name }}; quit" \
-           -u "${{ github.event.inputs.ftp_user }},${{ github.event.inputs.ftp_pass }}" \
-           "${{ github.event.inputs.ftp_host }}"
-      
-      echo "Transfer Berhasil! Cek dashboard Player4Me Anda."
+jobs:
+  transfer_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lftp
+          pip install yt-dlp
+
+      - name: Download Video ke GitHub
+        run: |
+          echo "Memulai download dari link sumber..."
+          yt-dlp "${{ github.event.inputs.video_url }}" -o "film_movie.mp4"
+
+      - name: Upload ke Player4Me via FTP
+        run: |
+          echo "Mengirim file ke Player4Me..."
+          lftp -e "set ftp:ssl-allow no; put -O / film_movie.mp4; quit" \
+               -u "${{ github.event.inputs.ftp_user }},${{ github.event.inputs.ftp_pass }}" \
+               "${{ github.event.inputs.ftp_host }}"
