@@ -1,0 +1,32 @@
+steps:
+  - name: Install Dependencies
+    run: |
+      sudo apt-get update
+      # lftp untuk transfer FTP yang stabil
+      sudo apt-get install -y lftp
+      # ffmpeg dibutuhkan oleh yt-dlp untuk menggabungkan potongan m3u8
+      sudo apt-get install -y ffmpeg
+      # Install yt-dlp versi terbaru
+      sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+      sudo chmod a+rx /usr/local/bin/yt-dlp
+
+  - name: Tahap 1 - Download Video ke GitHub Runner
+    run: |
+      echo "Memulai proses download dari sumber..."
+      # yt-dlp akan otomatis mendownload semua chunk m3u8 dan merge jadi 1 file mp4
+      yt-dlp "${{ github.event.inputs.video_url }}" \
+        -o "${{ github.event.inputs.file_name }}" \
+        --recode-video mp4 \
+        --fragment-retries infinite \
+        --no-check-certificate
+
+  - name: Tahap 2 - Upload dari GitHub ke Player4Me via FTP
+    run: |
+      echo "Proses download selesai. Memulai upload ke Player4Me via FTP..."
+      # Menggunakan lftp untuk mengirim file
+      # set ftp:ssl-allow no seringkali dibutuhkan untuk FTP server gratisan/hosting
+      lftp -e "set ftp:ssl-allow no; put -O / ${{ github.event.inputs.file_name }}; quit" \
+           -u "${{ github.event.inputs.ftp_user }},${{ github.event.inputs.ftp_pass }}" \
+           "${{ github.event.inputs.ftp_host }}"
+      
+      echo "Transfer Berhasil! Cek dashboard Player4Me Anda."
